@@ -130,7 +130,11 @@ async function uploadByLikelyLabel(page: Page, labels: Array<string | RegExp>, f
   const uploadButton = page.getByRole('button', { name: /upload file/i }).first();
   if ((await uploadButton.count()) > 0) {
     const fileChooser = await listenForFileChooser(page, uploadButton);
-    await fileChooser.setFiles(absPath);
+    if (fileChooser) {
+      await fileChooser.setFiles(absPath);
+    } else {
+      await setFileOnFirstChooser(page, absPath);
+    }
     await triggerAutofillFromResume(page);
     return;
   }
@@ -300,12 +304,35 @@ async function triggerAutofillFromResume(page: Page) {
   }
 }
 
-async function listenForFileChooser(page: Page, button: Locator): Promise<FileChooser> {
-  const [fileChooser] = await Promise.all([
-    page.waitForEvent('filechooser'),
-    button.click()
-  ]);
-  return fileChooser;
+async function listenForFileChooser(page: Page, button: Locator): Promise<FileChooser | null> {
+  try {
+    const [fileChooser] = await Promise.all([
+      page.waitForEvent('filechooser'),
+      button.click()
+    ]);
+    return fileChooser;
+  } catch {
+    await button.click();
+    return null;
+  }
+}
+
+async function setFileOnFirstChooser(page: Page, filePath: string) {
+  try {
+    const chooserPromise = page.waitForEvent('filechooser', { timeout: 3_000 }).catch(() => null);
+    const fileChooser = await chooserPromise;
+    if (fileChooser) {
+      await fileChooser.setFiles(filePath);
+      return;
+    }
+  } catch {
+    // ignore
+  }
+
+  const firstInput = page.locator('input[type="file"]').first();
+  if ((await firstInput.count()) > 0) {
+    await firstInput.setInputFiles(filePath);
+  }
 }
 
 async function captureScreenshot(page: Page, filename: string): Promise<string> {
