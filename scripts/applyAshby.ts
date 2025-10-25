@@ -391,12 +391,12 @@ async function ensureRequiredPolicyAnswers(
   }
 ) {
   // Targeted toggle buttons first (Ashby segmented controls)
-  const anchorToggle = await selectToggleByQuestion(page, /Notion is an in person company/i, true);
+  const anchorToggle = await selectSegmentedToggle(page, /Notion is an in person company/i, true);
   if (anchorToggle) {
     console.log('  ✅ Anchor days toggle button selected');
   }
 
-  const sponsorshipToggle = await selectToggleByQuestion(page, /will you now or in the future require notion to sponsor/i, !opts.requiresSponsorship);
+  const sponsorshipToggle = await selectSegmentedToggle(page, /will you now or in the future require notion to sponsor/i, !opts.requiresSponsorship);
   if (sponsorshipToggle) {
     console.log('  ✅ Sponsorship toggle button selected');
   }
@@ -685,50 +685,58 @@ async function ensureRadioByGroupText(page: Page, question: RegExp, preferYes: b
   return handled;
 }
 
-async function selectToggleByQuestion(page: Page, question: RegExp, preferYes: boolean): Promise<boolean> {
-  const container = page.locator('fieldset, section, article, div, form').filter({ hasText: question }).first();
-  if ((await container.count()) === 0) {
+async function selectSegmentedToggle(page: Page, question: RegExp, preferYes: boolean): Promise<boolean> {
+  const questionLocator = page.getByText(question, { exact: false });
+  if ((await questionLocator.count()) === 0) {
     return false;
   }
 
-  const targetRegex = preferYes ? buildAffirmativeRegex(true) : buildNegativeRegex();
+  const candidateContainers = questionLocator.first().locator(
+    'xpath=following::*[(self::div or self::section or self::fieldset or self::article or self::form)' +
+      ' and (.//button or .//*[@role="button"] or .//*[@role="radio"])]'
+  );
 
-  const buttons = container.locator('button, [role="button"], [role="radio"]');
-  const count = await buttons.count();
-  for (let i = 0; i < count; i++) {
-    const btn = buttons.nth(i);
-    const text = (await btn.innerText().catch(() => '')) || (await btn.getAttribute('aria-label')) || '';
-    if (targetRegex.test(text)) {
-      try {
-        await btn.click({ force: true });
-        return true;
-      } catch {
-        // continue
+  const targetRegex = preferYes ? /yes/i : buildNegativeRegex();
+
+  const limit = Math.min(await candidateContainers.count(), 3);
+  for (let idx = 0; idx < limit; idx++) {
+    const container = candidateContainers.nth(idx);
+    if ((await container.count()) === 0) continue;
+
+    const buttonCandidates = [
+      container.locator('button', { hasText: targetRegex }).first(),
+      container.locator('[role="button"]', { hasText: targetRegex }).first(),
+      container.locator('[role="radio"]', { hasText: targetRegex }).first()
+    ];
+
+    for (const candidate of buttonCandidates) {
+      if ((await candidate.count()) > 0) {
+        try {
+          await candidate.click({ force: true });
+          return true;
+        } catch {
+          // try next candidate
+        }
       }
     }
+
+    const success = await container.evaluate((el, params) => {
+      const yesPattern = new RegExp(params.pattern, 'i');
+      const buttons = Array.from(el.querySelectorAll('button, [role="button"], [role="radio"]')) as HTMLElement[];
+      for (const btn of buttons) {
+        const text = btn.textContent || btn.getAttribute('aria-label') || '';
+        if (yesPattern.test(text)) {
+          btn.dispatchEvent(new Event('click', { bubbles: true }));
+          return true;
+        }
+      }
+      return false;
+    }, { pattern: targetRegex.source });
+
+    if (success) return true;
   }
 
-  // Fallback: click via evaluate for segmented controls
-  const success = await container.evaluate((el, params) => {
-    const yesPattern = new RegExp(params.target, 'i');
-    const buttons = Array.from(el.querySelectorAll('button, [role="button"], [role="radio"]')) as HTMLElement[];
-    for (const btn of buttons) {
-      const text = btn.textContent || btn.getAttribute('aria-label') || '';
-      if (yesPattern.test(text)) {
-        btn.dispatchEvent(new Event('click', { bubbles: true }));
-        if (btn.getAttribute('aria-pressed') !== null) {
-          btn.setAttribute('aria-pressed', 'true');
-        }
-        if (btn.getAttribute('data-state') === 'unchecked') {
-          btn.setAttribute('data-state', params.preferYes ? 'checked' : 'unchecked');
-        }
-        return true;
-      }
-    }
-    return false;
-  }, { target: targetRegex.source, preferYes });
-
-  return success;
+  return false;
 }
 
 async function autoAnswerFollowUps(page: Page, profile: ApplyPayload['profile'], mode: 'auto' | 'confirm', companyName: string, jobTitle: string) {
