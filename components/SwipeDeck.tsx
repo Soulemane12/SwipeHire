@@ -40,13 +40,20 @@ function getNameParts(profile: Profile): { firstName: string; lastName: string }
   return { firstName: '', lastName: '' };
 }
 
+type LastStatus =
+  | { type: 'applying'; message: string }
+  | { type: 'applied'; message: string }
+  | { type: 'skipped'; message: string }
+  | { type: 'failed'; message: string }
+  | { type: null; message: '' };
+
 export default function SwipeDeck({ profile, onJobAction }: SwipeDeckProps) {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [currentIndex, setCurrentIndex] = useState(-1);
-  const [lastDirection, setLastDirection] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [applyStatus, setApplyStatus] = useState<string | null>(null);
   const [isAutoApplying, setIsAutoApplying] = useState(false);
+  const [lastStatus, setLastStatus] = useState<LastStatus>({ type: null, message: '' });
 
   const hasProfileData = useMemo(() => {
     const skillCount = profile.skills?.length ?? 0;
@@ -80,6 +87,7 @@ export default function SwipeDeck({ profile, onJobAction }: SwipeDeckProps) {
       saveJobSwipe(job.id, 'applied');
       onJobAction?.(job, 'applied');
       setJobs(prevJobs => prevJobs.filter(j => j.id !== job.id));
+      setLastStatus({ type: 'applied', message: `Marked ${job.title} as applied.` });
       return;
     }
 
@@ -104,7 +112,9 @@ export default function SwipeDeck({ profile, onJobAction }: SwipeDeckProps) {
     }
 
     setIsAutoApplying(true);
-    setApplyStatus(`Applying to ${job.title} at ${job.company}...`);
+    const applyingMessage = `Applying to ${job.title} at ${job.company}...`;
+    setLastStatus({ type: 'applying', message: applyingMessage });
+    setApplyStatus(applyingMessage);
 
     try {
       const payload = {
@@ -141,6 +151,10 @@ export default function SwipeDeck({ profile, onJobAction }: SwipeDeckProps) {
         onJobAction?.(job, 'applied');
         // Remove the job from the deck after successful application
         setJobs(prevJobs => prevJobs.filter(j => j.id !== job.id));
+        setLastStatus({
+          type: 'applied',
+          message: `Applied to ${job.title} at ${job.company}.`
+        });
         setApplyStatus(
           data.successText
             ? `Submitted: ${data.successText}`
@@ -148,10 +162,18 @@ export default function SwipeDeck({ profile, onJobAction }: SwipeDeckProps) {
         );
       } else {
         const message = data?.error || `HTTP ${response.status}`;
+        setLastStatus({
+          type: 'failed',
+          message: `Failed to apply to ${job.title}: ${message}`
+        });
         setApplyStatus(`Failed to apply: ${message}`);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      setLastStatus({
+        type: 'failed',
+        message: `Failed to apply to ${job.title}: ${message}`
+      });
       setApplyStatus(`Failed to apply: ${message}`);
     } finally {
       setIsAutoApplying(false);
@@ -215,17 +237,14 @@ export default function SwipeDeck({ profile, onJobAction }: SwipeDeckProps) {
   }, [filteredJobs]);
 
   const swiped = (direction: string, job: Job, index: number) => {
-    setLastDirection(direction);
-
     if (direction === 'right') {
       void autoApply(job);
     } else {
       saveJobSwipe(job.id, 'skipped');
       onJobAction?.(job, 'skipped');
+      setLastStatus({ type: 'skipped', message: `Skipped ${job.title}.` });
+      setJobs(prevJobs => prevJobs.filter(j => j.id !== job.id));
     }
-
-    // Remove the swiped job from the current jobs array immediately
-    setJobs(prevJobs => prevJobs.filter(j => j.id !== job.id));
 
     setCurrentIndex(Math.max(index - 1, -1));
     console.log(`Swiped ${direction} on ${job.title} at ${job.company}`);
@@ -347,28 +366,40 @@ export default function SwipeDeck({ profile, onJobAction }: SwipeDeckProps) {
       </div>
 
       {/* Last Action Feedback */}
-      {lastDirection && (
+      {lastStatus.type && (
         <div className="text-center mt-4">
-          <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-            lastDirection === 'right'
-              ? 'bg-green-100 text-green-800'
-              : 'bg-gray-100 text-gray-800'
-          }`}>
-            {lastDirection === 'right' ? (
-              <>
-                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Applied
-              </>
-            ) : (
-              <>
-                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-                Skipped
-              </>
+          <div
+            className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+              lastStatus.type === 'applied'
+                ? 'bg-green-100 text-green-800'
+                : lastStatus.type === 'applying'
+                ? 'bg-yellow-100 text-yellow-800'
+                : lastStatus.type === 'failed'
+                ? 'bg-red-100 text-red-800'
+                : 'bg-gray-100 text-gray-800'
+            }`}
+          >
+            {lastStatus.type === 'applying' && (
+              <svg className="w-4 h-4 mr-1 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v4m0 8v4m8-8h4M4 12H0m16.24-5.76l2.83-2.83M4.93 19.07l-2.83 2.83m16.97 0l2.83-2.83M4.93 4.93 2.1 2.1" />
+              </svg>
             )}
+            {lastStatus.type === 'applied' && (
+              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            )}
+            {lastStatus.type === 'failed' && (
+              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            )}
+            {lastStatus.type === 'skipped' && (
+              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            )}
+            {lastStatus.message}
           </div>
         </div>
       )}
