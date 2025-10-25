@@ -540,16 +540,20 @@ async function answerWithinBlock(block: Locator, kind: 'radio' | 'checkbox', pre
 
 function buildAffirmativeRegex(preferYes: boolean): RegExp {
   if (preferYes) {
-    return /yes|i\s*(am|do|understand|acknowledge|agree|confirm|will|can|have\s*read)|agree|confirm|willing|understand/i;
+    return /yes|i\s*(am|do|understand|acknowledge|agree|confirm|will|can|have\s*read|accept)|agree|confirm|willing|understand|no\s*(sponsorship|immigration)\s*(needed|required)/i;
   }
-  return /no|not|unable|cannot|won't|will\s*not|do\s*not|don't|i\s*do\s*not|i\s*will\s*not|without\s*need/i;
+  return buildNegativeRegex();
 }
 
 function buildFallbackTextRegex(preferYes: boolean): RegExp {
   if (preferYes) {
-    return /yes|i\s*(understand|acknowledge|agree|confirm|will\s*comply|have\s*read)|agree|confirm/i;
+    return /yes|i\s*(understand|acknowledge|agree|confirm|will\s*comply|have\s*read|accept)|agree|confirm|understand/i;
   }
-  return /no|i\s*(do|will)\s*not|won't|do\s*not\s*require|will\s*not\s*require|do\s*not\s*need|no,?\s*i\s*do\s*not/i;
+  return buildNegativeRegex();
+}
+
+function buildNegativeRegex(): RegExp {
+  return /no|not|unable|cannot|won't|will\s*not|do\s*not|don't|i\s*(do|will)\s*not|need\s*sponsorship|require\s*sponsorship|sponsorship\s*required/i;
 }
 
 async function clickByText(block: Locator, regex: RegExp): Promise<boolean> {
@@ -612,9 +616,10 @@ async function ensureRadioByGroupText(page: Page, question: RegExp, preferYes: b
 
     for (const container of containers) {
       const radios = Array.from(container.querySelectorAll('input[type="radio"]')) as HTMLInputElement[];
-      if (!radios.length) continue;
+      const buttons = Array.from(container.querySelectorAll('button, [role="button"]')) as HTMLElement[];
 
       const targetRe = preferYes ? yesRe : noRe;
+
       for (const radio of radios) {
         const label = radio.closest('label')?.textContent ||
           document.querySelector(`label[for="${radio.id}"]`)?.textContent ||
@@ -629,14 +634,23 @@ async function ensureRadioByGroupText(page: Page, question: RegExp, preferYes: b
         }
       }
 
-      // If we cannot find an exact match, choose first/last option as fallback
-      const fallback = preferYes ? radios[0] : radios[radios.length - 1];
-      if (fallback) {
-        if (!fallback.checked) {
-          fallback.checked = true;
-          fallback.dispatchEvent(new Event('change', { bubbles: true }));
+      for (const btn of buttons) {
+        const text = (btn.textContent || btn.getAttribute('aria-label') || '').toLowerCase();
+        if (targetRe.test(text)) {
+          btn.dispatchEvent(new Event('click', { bubbles: true }));
+          return true;
         }
-        return true;
+      }
+
+      if (radios.length) {
+        const fallback = preferYes ? radios[0] : radios[radios.length - 1];
+        if (fallback) {
+          if (!fallback.checked) {
+            fallback.checked = true;
+            fallback.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+          return true;
+        }
       }
     }
 
