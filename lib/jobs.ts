@@ -10,7 +10,15 @@ export const ATS_COMPANIES: ATSCompany[] = [
   { name: 'Supabase', atsProvider: 'ashby', companyId: 'supabase', baseUrl: 'https://jobs.ashbyhq.com/supabase' },
   { name: 'Retool', atsProvider: 'ashby', companyId: 'retool', baseUrl: 'https://jobs.ashbyhq.com/retool' },
   { name: 'Zapier', atsProvider: 'ashby', companyId: 'zapier', baseUrl: 'https://jobs.ashbyhq.com/zapier' },
-  { name: 'Loom', atsProvider: 'ashby', companyId: 'loom', baseUrl: 'https://jobs.ashbyhq.com/loom' }
+  { name: 'Loom', atsProvider: 'ashby', companyId: 'loom', baseUrl: 'https://jobs.ashbyhq.com/loom' },
+
+  // Greenhouse companies
+  { name: 'Figma', atsProvider: 'greenhouse', companyId: 'figma', baseUrl: 'https://boards.greenhouse.io/figma' },
+  { name: 'Stripe', atsProvider: 'greenhouse', companyId: 'stripe', baseUrl: 'https://boards.greenhouse.io/stripe' },
+
+  // Lever companies
+  { name: 'Ramp', atsProvider: 'lever', companyId: 'ramp', baseUrl: 'https://jobs.lever.co/ramp' },
+  { name: 'Snyk', atsProvider: 'lever', companyId: 'snyk', baseUrl: 'https://jobs.lever.co/snyk' }
 ];
 
 // Job swipe persistence
