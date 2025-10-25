@@ -1,0 +1,46 @@
+Soulemane Sow
+Software Engineer
+14soulemanesow@gmail.com
+Greater New York City Area
+
+PROFESSIONAL SUMMARY
+Experienced software developer with expertise in full-stack development, specializing in React.js, Next.js, and modern web technologies. Proven track record of deploying scalable applications and improving user experience through responsive design and performance optimization.
+
+SKILLS
+• Programming Languages: Python, JavaScript, TypeScript, Java
+• Frontend Technologies: React.js, Next.js, TailwindCSS, HTML, CSS
+• Backend & Database: Node.js, Supabase, Postgres
+• Tools & Platforms: Vercel, OpenCV, Onshape API, D3.js, Bun
+• Design & Development: Responsive UI/UX, Performance Optimization, Real-time Updates
+
+EXPERIENCE
+
+Software Developer
+JBI Software, INC - New York, NY (Hybrid)
+June 2025 - Present
+• Deployed multi-module features to Vercel improving user experience with real-time updates
+• Partnered with designers to deliver responsive UI and high performance across devices
+• Implemented scalable architecture for multi-tenant applications
+
+Software Engineer
+A Represented Smile - New York, NY
+December 2024 - Present
+• Designed and developed responsive, intuitive UIs using HTML, CSS, JavaScript, and React.js
+• Improved accessibility for daily visitors and enhanced user engagement
+• Optimized performance, improving site responsiveness and reducing load times by 40%
+
+EDUCATION
+
+High School Diploma
+Manhattan Center for Science and Mathematics
+Graduated 2024
+
+LANGUAGES
+• Python (Advanced)
+• JavaScript (Advanced)
+• TypeScript (Intermediate)
+• Java (Intermediate)
+
+LINKS
+LinkedIn: https://linkedin.com/in/soulemane-sow
+Portfolio: https://soulemane.dev

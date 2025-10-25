@@ -9,18 +9,29 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@react-spring/animated": "^10.0.3",
+    "@react-spring/core": "^10.0.3",
+    "@react-spring/shared": "^10.0.3",
+    "@react-spring/web": "^9.7.5",
+    "groq-sdk": "^0.34.0",
+    "mammoth": "^1.11.0",
+    "next": "16.0.0",
+    "pdfjs-dist": "^5.4.296",
+    "playwright": "^1.56.1",
     "react": "19.2.0",
     "react-dom": "19.2.0",
-    "next": "16.0.0"
+    "react-tinder-card": "^1.6.4",
+    "tailwind": "^4.0.0",
+    "zustand": "^5.0.8"
   },
   "devDependencies": {
-    "typescript": "^5",
+    "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@tailwindcss/postcss": "^4",
-    "tailwindcss": "^4",
     "eslint": "^9",
-    "eslint-config-next": "16.0.0"
+    "eslint-config-next": "16.0.0",
+    "tailwindcss": "^4",
+    "typescript": "^5"
   }
 }

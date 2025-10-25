@@ -1,0 +1,38 @@
+export interface ExperienceItem {
+  company: string;
+  position: string;
+  startDate: string;
+  endDate: string;
+  description: string;
+  location?: string;
+}
+
+export interface EducationItem {
+  institution: string;
+  degree: string;
+  field: string;
+  startDate: string;
+  endDate: string;
+  gpa?: string;
+}
+
+export interface Profile {
+  name?: string;
+  email?: string;
+  phone?: string;
+  location?: string;
+  summary?: string;
+  skills?: string[];
+  experience?: ExperienceItem[];
+  education?: EducationItem[];
+  languages?: string[];
+  certifications?: string[];
+  linkedinUrl?: string;
+  portfolioUrl?: string;
+}
+
+export interface ProfileCompletionStatus {
+  isComplete: boolean;
+  missingFields: string[];
+  criticalFields: string[];
+}
