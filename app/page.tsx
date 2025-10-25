@@ -9,6 +9,7 @@ import SwipeDeck from '@/components/SwipeDeck';
 import JobDashboard from '@/components/JobDashboard';
 import { Profile } from '@/types/profile';
 import { Job } from '@/types/job';
+import { ApplicationRecord } from '@/lib/applicationQueue';
 import { getProfile, getProfileCompletionStatus } from '@/utils/profile';
 
 export default function Home() {
@@ -61,8 +62,8 @@ export default function Home() {
     // Additional handling can be added here
   };
 
-  const handleViewJob = (job: Job) => {
-    window.open(job.atsUrl, '_blank');
+  const handleViewJob = (record: ApplicationRecord) => {
+    window.open(record.job.atsUrl, '_blank');
   };
 
   return (
