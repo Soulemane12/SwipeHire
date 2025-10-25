@@ -7,6 +7,14 @@ interface JobCardProps {
 }
 
 export default function JobCard({ job }: JobCardProps) {
+  const providerLabels: Record<Job['atsProvider'], string> = {
+    ashby: 'Ashby',
+    greenhouse: 'Greenhouse',
+    lever: 'Lever'
+  };
+
+  const providerLabel = providerLabels[job.atsProvider] || job.atsProvider;
+
   const getMatchScoreColor = (score?: number) => {
     if (!score) return 'text-gray-500';
     if (score >= 80) return 'text-green-500';
@@ -37,6 +45,9 @@ export default function JobCard({ job }: JobCardProps) {
             <p className="text-lg text-blue-600 font-medium mb-2">
               {job.company}
             </p>
+            <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 text-xs font-medium">
+              Source: {providerLabel}
+            </span>
           </div>
           {job.matchScore !== undefined && (
             <div className="text-right ml-3">
