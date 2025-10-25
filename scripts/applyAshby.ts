@@ -113,6 +113,7 @@ async function uploadByLikelyLabel(page: Page, labels: Array<string | RegExp>, f
     const input = page.getByLabel(label, { exact: false });
     if ((await input.count()) > 0) {
       await input.setInputFiles(absPath);
+      await triggerAutofillFromResume(page);
       return;
     }
   }
@@ -120,6 +121,7 @@ async function uploadByLikelyLabel(page: Page, labels: Array<string | RegExp>, f
   const firstFileInput = page.locator('input[type="file"]').first();
   if ((await firstFileInput.count()) > 0) {
     await firstFileInput.setInputFiles(absPath);
+    await triggerAutofillFromResume(page);
   }
 }
 
@@ -247,6 +249,29 @@ async function findSuccessText(page: Page): Promise<string | null> {
   const body = await page.content();
   const match = body.match(/(Thank you|received|submitted|success)/i);
   return match ? match[0] : null;
+}
+
+async function triggerAutofillFromResume(page: Page) {
+  const autofillButton = page.getByRole('button', { name: /autofill from resume/i }).first();
+  if ((await autofillButton.count()) > 0) {
+    try {
+      await autofillButton.click();
+      await page.waitForTimeout(700);
+      return;
+    } catch {
+      // ignore and fall back
+    }
+  }
+
+  const autofillTextButton = page.getByText(/Autofill from resume/i, { exact: false }).first();
+  if ((await autofillTextButton.count()) > 0) {
+    try {
+      await autofillTextButton.click();
+      await page.waitForTimeout(700);
+    } catch {
+      // ignore
+    }
+  }
 }
 
 async function captureScreenshot(page: Page, filename: string): Promise<string> {

@@ -10,7 +10,7 @@ import { fetchJobsFromATS } from '@/services/ats';
 import { enhanceJobsWithMatches, calculateJobMatch } from '@/services/matching';
 
 const MATCH_SCORE_THRESHOLD = 60;
-const FALLBACK_RESUME_PATH = process.env.NEXT_PUBLIC_RESUME_PATH ?? '';
+const FALLBACK_RESUME_PATH = process.env.NEXT_PUBLIC_RESUME_PATH ?? 'public/Soulemane Sow Resume.pdf';
 type SwipeDirection = 'left' | 'right' | 'up' | 'down';
 type TinderCardHandle = {
   swipe: (dir?: SwipeDirection) => Promise<void>;
@@ -154,6 +154,7 @@ export default function SwipeDeck({ profile, onJobAction }: SwipeDeckProps) {
     }
 
     setIsLoading(true);
+    setApplyStatus(null);
     setJobs([]);
 
     const swipedJobIds = new Set(getJobSwipes().map(swipe => swipe.jobId));
@@ -305,7 +306,7 @@ export default function SwipeDeck({ profile, onJobAction }: SwipeDeckProps) {
       {/* Instructions */}
       <div className="text-center mb-6">
         <p className="text-sm text-gray-600">
-          Swipe right to apply • Swipe left to skip
+          Swipe right to auto-apply • Swipe left to skip
         </p>
       </div>
 
