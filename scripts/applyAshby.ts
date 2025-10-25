@@ -426,6 +426,16 @@ async function ensureRequiredPolicyAnswers(
       console.log(`  ✅ Targeted answer applied for question /${task.prompt.source}/`);
     }
   }
+
+  const anchorConfirmed = await ensureCheckboxByLabelPattern(page, /(i\s*(have\s*)?read|i\s*understand|confirm).*in\s*office.*(policy|requirements)/i);
+  if (anchorConfirmed) {
+    console.log('  ✅ Anchor days checkbox confirmed via label fallback');
+  }
+
+  const sponsorHandled = await ensureRadioByGroupText(page, /(will\s+you\s+now|future).*sponsor.*immigration.*(employ|employment|case)/i, !opts.requiresSponsorship);
+  if (sponsorHandled) {
+    console.log('  ✅ Sponsorship question answered via fallback');
+  }
 }
 
 async function answerQuestionBlock(
@@ -567,6 +577,73 @@ async function clickByText(block: Locator, regex: RegExp): Promise<boolean> {
   }
 
   return false;
+}
+
+async function ensureCheckboxByLabelPattern(page: Page, pattern: RegExp): Promise<boolean> {
+  const handled = await page.evaluate(({ pattern }) => {
+    const re = new RegExp(pattern, 'i');
+    const checkboxes = Array.from(document.querySelectorAll('input[type="checkbox"]')) as HTMLInputElement[];
+    for (const checkbox of checkboxes) {
+      const label = checkbox.closest('label')?.textContent ||
+        document.querySelector(`label[for="${checkbox.id}"]`)?.textContent ||
+        checkbox.getAttribute('aria-label') || '';
+      if (re.test(label || '')) {
+        if (!checkbox.checked) {
+          checkbox.checked = true;
+          checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        return true;
+      }
+    }
+    return false;
+  }, { pattern: pattern.source });
+
+  return handled;
+}
+
+async function ensureRadioByGroupText(page: Page, question: RegExp, preferYes: boolean): Promise<boolean> {
+  const handled = await page.evaluate(({ question, preferYes }) => {
+    const qRe = new RegExp(question, 'i');
+    const yesRe = /(yes|i\s*(do|will|agree|confirm|understand)|no\s*sponsorship\s*needed|without\s*assistance)/i;
+    const noRe = /(no|not|i\s*will\s*require|yes\s*,?\s*i\s*will)/i;
+
+    const containers = Array.from(document.querySelectorAll('fieldset, section, div, article, form'))
+      .filter(el => qRe.test(el.textContent || ''));
+
+    for (const container of containers) {
+      const radios = Array.from(container.querySelectorAll('input[type="radio"]')) as HTMLInputElement[];
+      if (!radios.length) continue;
+
+      const targetRe = preferYes ? yesRe : noRe;
+      for (const radio of radios) {
+        const label = radio.closest('label')?.textContent ||
+          document.querySelector(`label[for="${radio.id}"]`)?.textContent ||
+          radio.getAttribute('aria-label') ||
+          radio.value || '';
+        if (targetRe.test(label.toLowerCase())) {
+          if (!radio.checked) {
+            radio.checked = true;
+            radio.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+          return true;
+        }
+      }
+
+      // If we cannot find an exact match, choose first/last option as fallback
+      const fallback = preferYes ? radios[0] : radios[radios.length - 1];
+      if (fallback) {
+        if (!fallback.checked) {
+          fallback.checked = true;
+          fallback.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+        return true;
+      }
+    }
+
+    return false;
+  }, { question: question.source, preferYes });
+
+  return handled;
 }
 
 async function autoAnswerFollowUps(page: Page, profile: ApplyPayload['profile'], mode: 'auto' | 'confirm', companyName: string, jobTitle: string) {
