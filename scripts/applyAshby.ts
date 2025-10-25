@@ -386,36 +386,41 @@ async function ensureRequiredPolicyAnswers(
     requiresSponsorship: boolean;
   }
 ) {
-  const tasks: Array<{ prompt: RegExp; kind: 'radio' | 'checkbox'; yes?: boolean } > = [
+  const tasks: Array<{ prompt: RegExp; kinds: ('radio' | 'checkbox')[]; preferYes: boolean }> = [
     {
       prompt: /authorized\s+to\s+work\s+lawfully.*united\s+states/i,
-      kind: 'radio',
-      yes: opts.workAuthYes
+      kinds: ['radio', 'checkbox'],
+      preferYes: opts.workAuthYes
     },
     {
       prompt: /(in[-\s]?office|anchor\s+days|in\s+person).*(confirm|understand|acknowledge)/i,
-      kind: 'checkbox',
-      yes: opts.inOfficePolicyConfirm
+      kinds: ['checkbox', 'radio'],
+      preferYes: opts.inOfficePolicyConfirm
     },
     {
       prompt: /(willing\s+to\s+relocate|relocate\s+to\s+(new\s+york|nyc|sf|san\s+francisco)|relocation.*required)/i,
-      kind: 'radio',
-      yes: opts.willingToRelocate
+      kinds: ['radio', 'checkbox'],
+      preferYes: opts.willingToRelocate
     },
     {
-      prompt: /(sponsor).*immigration.*(employ|future|now)/i,
-      kind: 'radio',
-      yes: !opts.requiresSponsorship
+      prompt: /(will\s+you\s+now|future).*sponsor.*immigration.*(employ|employment)/i,
+      kinds: ['radio', 'checkbox'],
+      preferYes: opts.requiresSponsorship
     }
   ];
 
   for (const task of tasks) {
-    const handled = await answerQuestionBlock(page, task.prompt, task.kind, task.yes ?? true);
-    console.log(
-      handled
-        ? `  ✅ Targeted answer applied for question /${task.prompt.source}/`
-        : `  ⚠️ Could not find targeted controls for /${task.prompt.source}/`
-    );
+    let handled = false;
+    for (const kind of task.kinds) {
+      handled = await answerQuestionBlock(page, task.prompt, kind, task.preferYes);
+      if (handled) break;
+    }
+
+    if (!handled) {
+      console.log(`  ⚠️ Could not find targeted controls for /${task.prompt.source}/`);
+    } else {
+      console.log(`  ✅ Targeted answer applied for question /${task.prompt.source}/`);
+    }
   }
 }
 
