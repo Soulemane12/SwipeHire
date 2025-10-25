@@ -139,7 +139,7 @@ export async function applyAshby(payload: ApplyPayload): Promise<ApplyResult> {
     }
 
     await ensureRequiredPolicyAnswers(page, {
-      workAuthYes: /yes|authorized/i.test(workAuthAnswer),
+      workAuthYes: /yes|authorized|citizen|lawful/i.test(workAuthAnswer),
       inOfficePolicyConfirm: understandsAnchorDays,
       willingToRelocate,
       requiresSponsorship
@@ -397,7 +397,7 @@ async function ensureRequiredPolicyAnswers(
       preferYes: opts.workAuthYes
     },
     {
-      prompt: /(in[-\s]?office|anchor\s+days|in\s+person).*(confirm|understand|acknowledge)/i,
+      prompt: /(in[-\s]?office|anchor\s+days|majority\s+of\s+their\s+week|office\s+policy).*(confirm|understand|acknowledge|read)/i,
       kinds: ['checkbox', 'radio'],
       preferYes: opts.inOfficePolicyConfirm
     },
@@ -407,7 +407,7 @@ async function ensureRequiredPolicyAnswers(
       preferYes: opts.willingToRelocate
     },
     {
-      prompt: /(will\s+you\s+now|future).*sponsor.*immigration.*(employ|employment)/i,
+      prompt: /(will\s+you\s+now|future).*sponsor.*immigration.*(employ|employment|case)/i,
       kinds: ['radio', 'checkbox'],
       preferYes: opts.requiresSponsorship
     }
@@ -493,10 +493,14 @@ async function answerWithinBlock(block: Locator, kind: 'radio' | 'checkbox', pre
         await button.click({ force: true });
         return true;
       }
+      if (await clickByText(block, buildAffirmativeRegex(true))) {
+        return true;
+      }
       return false;
     }
 
     const yesRegex = buildAffirmativeRegex(preferYes);
+    const fallbackRegex = buildFallbackTextRegex(preferYes);
     const radioByRole = block.getByRole('radio', { name: yesRegex }).first();
     if ((await radioByRole.count()) > 0) {
       await radioByRole.check({ force: true });
@@ -509,9 +513,7 @@ async function answerWithinBlock(block: Locator, kind: 'radio' | 'checkbox', pre
       return true;
     }
 
-    const labelMatch = block.getByText(yesRegex, { exact: false }).first();
-    if ((await labelMatch.count()) > 0) {
-      await labelMatch.click({ force: true });
+    if (await clickByText(block, fallbackRegex)) {
       return true;
     }
 
@@ -528,9 +530,43 @@ async function answerWithinBlock(block: Locator, kind: 'radio' | 'checkbox', pre
 
 function buildAffirmativeRegex(preferYes: boolean): RegExp {
   if (preferYes) {
-    return /^(yes|i\s*(am|do|understand|acknowledge|agree|will|can)|agree|confirm|willing)/i;
+    return /yes|i\s*(am|do|understand|acknowledge|agree|confirm|will|can|have\s*read)|agree|confirm|willing|understand/i;
   }
-  return /^(no|not|unable|cannot|won't)/i;
+  return /no|not|unable|cannot|won't|will\s*not|do\s*not|don't|i\s*do\s*not|i\s*will\s*not|without\s*need/i;
+}
+
+function buildFallbackTextRegex(preferYes: boolean): RegExp {
+  if (preferYes) {
+    return /yes|i\s*(understand|acknowledge|agree|confirm|will\s*comply|have\s*read)|agree|confirm/i;
+  }
+  return /no|i\s*(do|will)\s*not|won't|do\s*not\s*require|will\s*not\s*require|do\s*not\s*need|no,?\s*i\s*do\s*not/i;
+}
+
+async function clickByText(block: Locator, regex: RegExp): Promise<boolean> {
+  const selectors = ['button', '[role="button"]', 'label', 'span', 'p', 'div'];
+  for (const selector of selectors) {
+    const candidate = block.locator(selector).filter({ hasText: regex }).first();
+    if ((await candidate.count()) > 0) {
+      try {
+        await candidate.click({ force: true });
+        return true;
+      } catch (error) {
+        // Continue trying other selectors
+      }
+    }
+  }
+
+  const textLocator = block.getByText(regex, { exact: false }).first();
+  if ((await textLocator.count()) > 0) {
+    try {
+      await textLocator.click({ force: true });
+      return true;
+    } catch {
+      // ignore
+    }
+  }
+
+  return false;
 }
 
 async function autoAnswerFollowUps(page: Page, profile: ApplyPayload['profile'], mode: 'auto' | 'confirm', companyName: string, jobTitle: string) {
