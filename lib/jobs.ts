@@ -15,10 +15,11 @@ export const ATS_COMPANIES: ATSCompany[] = [
   // Greenhouse companies
   { name: 'Figma', atsProvider: 'greenhouse', companyId: 'figma', baseUrl: 'https://boards.greenhouse.io/figma' },
   { name: 'Stripe', atsProvider: 'greenhouse', companyId: 'stripe', baseUrl: 'https://boards.greenhouse.io/stripe' },
+  { name: 'GitHub', atsProvider: 'greenhouse', companyId: 'github', baseUrl: 'https://boards.greenhouse.io/github' },
 
   // Lever companies
-  { name: 'Ramp', atsProvider: 'lever', companyId: 'ramp', baseUrl: 'https://jobs.lever.co/ramp' },
-  { name: 'Snyk', atsProvider: 'lever', companyId: 'snyk', baseUrl: 'https://jobs.lever.co/snyk' }
+  { name: 'Discord', atsProvider: 'lever', companyId: 'discord', baseUrl: 'https://jobs.lever.co/discord' },
+  { name: 'Netlify', atsProvider: 'lever', companyId: 'netlify', baseUrl: 'https://jobs.lever.co/netlify' }
 ];
 
 // Job swipe persistence

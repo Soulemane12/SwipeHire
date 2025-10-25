@@ -16,6 +16,11 @@ type TinderCardHandle = {
   restoreCard: () => Promise<void>;
 };
 type ProviderFilter = 'all' | 'ashby' | 'greenhouse' | 'lever';
+const PROVIDER_LABELS: Record<Exclude<ProviderFilter, 'all'>, string> = {
+  ashby: 'Ashby',
+  greenhouse: 'Greenhouse',
+  lever: 'Lever'
+};
 
 interface SwipeDeckProps {
   profile: Profile;
@@ -43,10 +48,19 @@ export default function SwipeDeck({ profile, onJobAction }: SwipeDeckProps) {
     return scoredJobs.filter(job => (job.matchScore ?? 0) >= MATCH_SCORE_THRESHOLD);
   }, [jobs, profile, hasProfileData]);
 
-  const availableProviders = useMemo(
-    () => Array.from(new Set(enhancedJobs.map(job => job.atsProvider))),
-    [enhancedJobs]
-  );
+  const providerCounts = useMemo(() => {
+    const counts: Record<Exclude<ProviderFilter, 'all'>, number> = {
+      ashby: 0,
+      greenhouse: 0,
+      lever: 0
+    };
+
+    enhancedJobs.forEach(job => {
+      counts[job.atsProvider] = (counts[job.atsProvider] ?? 0) + 1;
+    });
+
+    return counts;
+  }, [enhancedJobs]);
 
   const filteredJobs = useMemo(() => {
     if (providerFilter === 'all') return enhancedJobs;
@@ -72,6 +86,7 @@ export default function SwipeDeck({ profile, onJobAction }: SwipeDeckProps) {
 
     const companyPromises = ATS_COMPANIES.map(async company => {
       try {
+        console.log(`[Jobs] Fetching ${company.name} via ${company.atsProvider}`);
         const companyJobs = await fetchJobsFromATS(company);
         if (!companyJobs || companyJobs.length === 0) return;
 
@@ -208,34 +223,33 @@ export default function SwipeDeck({ profile, onJobAction }: SwipeDeckProps) {
       </div>
 
       {/* Source Filter */}
-      {availableProviders.length > 0 && (
-        <div className="flex justify-end mb-4">
-          <label className="text-sm text-gray-600 mr-2" htmlFor="job-source-filter">
-            Source
-          </label>
-          <select
-            id="job-source-filter"
-            value={providerFilter}
-            onChange={(event: ChangeEvent<HTMLSelectElement>) =>
-              setProviderFilter(event.target.value as ProviderFilter)
-            }
-            className="text-sm border border-gray-200 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">All Sources</option>
-            {availableProviders.map(provider => (
-              <option key={provider} value={provider}>
-                {provider === 'ashby'
-                  ? 'Ashby'
-                  : provider === 'greenhouse'
-                  ? 'Greenhouse'
-                  : provider === 'lever'
-                  ? 'Lever'
-                  : provider}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
+      <div className="flex justify-end items-center mb-4 space-x-2 text-sm">
+        <label className="text-gray-600" htmlFor="job-source-filter">
+          Source
+        </label>
+        <select
+          id="job-source-filter"
+          value={providerFilter}
+          onChange={(event: ChangeEvent<HTMLSelectElement>) =>
+            setProviderFilter(event.target.value as ProviderFilter)
+          }
+          className="border border-gray-200 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="all">
+            All Sources ({enhancedJobs.length})
+          </option>
+          {(Object.keys(PROVIDER_LABELS) as Array<Exclude<ProviderFilter, 'all'>>).map(provider => (
+            <option
+              key={provider}
+              value={provider}
+              disabled={providerCounts[provider] === 0}
+            >
+              {PROVIDER_LABELS[provider]}
+              {providerCounts[provider] > 0 ? ` (${providerCounts[provider]})` : ' (none)'}
+            </option>
+          ))}
+        </select>
+      </div>
 
 
       {/* Instructions */}

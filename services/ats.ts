@@ -3,6 +3,7 @@ import { Job, ATSCompany } from '@/types/job';
 // Greenhouse API integration
 export async function fetchGreenhouseJobs(companyId: string): Promise<Job[]> {
   try {
+    console.log(`🔍 Fetching Greenhouse jobs for ${companyId}`);
     const response = await fetch(`https://boards-api.greenhouse.io/v1/boards/${companyId}/jobs`);
 
     if (!response.ok) {
@@ -10,8 +11,12 @@ export async function fetchGreenhouseJobs(companyId: string): Promise<Job[]> {
     }
 
     const data = await response.json();
+    console.log(`📊 ${companyId} greenhouse payload:`, {
+      jobCount: data.jobs?.length || 0,
+      keys: Object.keys(data || {})
+    });
 
-    return data.jobs?.map((job: any) => ({
+    const jobs = data.jobs?.map((job: any) => ({
       id: job.id.toString(),
       title: job.title,
       company: job.company?.name || companyId,
@@ -25,6 +30,12 @@ export async function fetchGreenhouseJobs(companyId: string): Promise<Job[]> {
       atsProvider: 'greenhouse' as const,
       postedDate: job.updated_at?.split('T')[0] || new Date().toISOString().split('T')[0]
     })) || [];
+
+    if (!jobs.length) {
+      console.warn(`⚠️ No Greenhouse jobs found for ${companyId}`);
+    }
+
+    return jobs;
   } catch (error) {
     console.error('Error fetching Greenhouse jobs:', error);
     return [];
@@ -34,6 +45,7 @@ export async function fetchGreenhouseJobs(companyId: string): Promise<Job[]> {
 // Lever API integration
 export async function fetchLeverJobs(companyId: string): Promise<Job[]> {
   try {
+    console.log(`🔍 Fetching Lever jobs for ${companyId}`);
     const response = await fetch(`https://api.lever.co/v0/postings/${companyId}?mode=json`);
 
     if (!response.ok) {
@@ -41,8 +53,9 @@ export async function fetchLeverJobs(companyId: string): Promise<Job[]> {
     }
 
     const data = await response.json();
+    console.log(`📊 ${companyId} lever payload count:`, Array.isArray(data) ? data.length : 0);
 
-    return data.map((job: any) => ({
+    const jobs = data.map((job: any) => ({
       id: job.id,
       title: job.text,
       company: job.categories?.team || companyId,
@@ -57,6 +70,12 @@ export async function fetchLeverJobs(companyId: string): Promise<Job[]> {
       atsProvider: 'lever' as const,
       postedDate: new Date(job.createdAt).toISOString().split('T')[0]
     }));
+
+    if (!jobs.length) {
+      console.warn(`⚠️ No Lever jobs found for ${companyId}`);
+    }
+
+    return jobs;
   } catch (error) {
     console.error('Error fetching Lever jobs:', error);
     return [];
