@@ -1,4 +1,4 @@
-import { chromium, Page, Locator, Browser, BrowserContext } from 'playwright';
+import { chromium, Page, Locator, Browser, BrowserContext, FileChooser } from 'playwright';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -41,12 +41,33 @@ export async function applyAshby(payload: ApplyPayload): Promise<ApplyResult> {
 
     const applyButton = page.getByRole('button', { name: /apply/i }).first();
     if ((await applyButton.count()) > 0) {
-      await applyButton.click();
+      const [newAppPage] = await Promise.all([
+        context.waitForEvent('page').catch(() => null),
+        applyButton.click()
+      ]);
+      if (newAppPage) {
+        page = newAppPage;
+        await newAppPage.waitForLoadState('domcontentloaded');
+      } else {
+        await page.waitForLoadState('domcontentloaded');
+      }
     } else {
-      await page.getByRole('link', { name: /apply/i }).first().click();
+      const applyLink = page.getByRole('link', { name: /apply/i }).first();
+      const [newAppPage] = await Promise.all([
+        context.waitForEvent('page').catch(() => null),
+        applyLink.click()
+      ]);
+      if (newAppPage) {
+        page = newAppPage;
+        await newAppPage.waitForLoadState('domcontentloaded');
+      } else {
+        await page.waitForLoadState('domcontentloaded');
+      }
     }
 
-    await page.waitForSelector('form');
+    await page.waitForSelector('input[type="file"], button:has-text("Upload"), form', {
+      timeout: 20_000
+    });
 
     await fillIfVisible(page, 'First name', profile.firstName);
     await fillIfVisible(page, 'Last name', profile.lastName);
@@ -81,13 +102,10 @@ export async function applyAshby(payload: ApplyPayload): Promise<ApplyResult> {
     const successText = await findSuccessText(page);
 
     const screenshotPath = await captureScreenshot(page, `ashby-${Date.now()}.png`);
-
-    await browser.close();
     return { ok: true, successText, screenshotPath };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     const failShot = page ? await captureScreenshot(page, `ashby-fail-${Date.now()}.png`) : undefined;
-    if (browser) await browser.close();
     return { ok: false, error: message, screenshotPath: failShot };
   } finally {
     await context?.close();
@@ -107,6 +125,14 @@ async function uploadByLikelyLabel(page: Page, labels: Array<string | RegExp>, f
   const absPath = path.resolve(filePath);
   if (!fs.existsSync(absPath)) {
     throw new Error(`Resume file not found at ${absPath}`);
+  }
+
+  const uploadButton = page.getByRole('button', { name: /upload file/i }).first();
+  if ((await uploadButton.count()) > 0) {
+    const fileChooser = await listenForFileChooser(page, uploadButton);
+    await fileChooser.setFiles(absPath);
+    await triggerAutofillFromResume(page);
+    return;
   }
 
   for (const label of labels) {
@@ -272,6 +298,14 @@ async function triggerAutofillFromResume(page: Page) {
       // ignore
     }
   }
+}
+
+async function listenForFileChooser(page: Page, button: Locator): Promise<FileChooser> {
+  const [fileChooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    button.click()
+  ]);
+  return fileChooser;
 }
 
 async function captureScreenshot(page: Page, filename: string): Promise<string> {
