@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback, createRef } from 'react';
+import { useState, useEffect, useMemo, useCallback, createRef, type ChangeEvent } from 'react';
 import TinderCard from 'react-tinder-card';
 import JobCard from './JobCard';
 import { Job } from '@/types/job';
@@ -15,6 +15,7 @@ type TinderCardHandle = {
   swipe: (dir?: SwipeDirection) => Promise<void>;
   restoreCard: () => Promise<void>;
 };
+type ProviderFilter = 'all' | 'ashby' | 'greenhouse' | 'lever';
 
 interface SwipeDeckProps {
   profile: Profile;
@@ -26,6 +27,7 @@ export default function SwipeDeck({ profile, onJobAction }: SwipeDeckProps) {
   const [currentIndex, setCurrentIndex] = useState(-1);
   const [lastDirection, setLastDirection] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
+  const [providerFilter, setProviderFilter] = useState<ProviderFilter>('all');
 
   const hasProfileData = useMemo(() => {
     const skillCount = profile.skills?.length ?? 0;
@@ -41,9 +43,19 @@ export default function SwipeDeck({ profile, onJobAction }: SwipeDeckProps) {
     return scoredJobs.filter(job => (job.matchScore ?? 0) >= MATCH_SCORE_THRESHOLD);
   }, [jobs, profile, hasProfileData]);
 
-  const cardRefs = useMemo(
-    () => enhancedJobs.map(() => createRef<TinderCardHandle>()),
+  const availableProviders = useMemo(
+    () => Array.from(new Set(enhancedJobs.map(job => job.atsProvider))),
     [enhancedJobs]
+  );
+
+  const filteredJobs = useMemo(() => {
+    if (providerFilter === 'all') return enhancedJobs;
+    return enhancedJobs.filter(job => job.atsProvider === providerFilter);
+  }, [enhancedJobs, providerFilter]);
+
+  const cardRefs = useMemo(
+    () => filteredJobs.map(() => createRef<TinderCardHandle>()),
+    [filteredJobs]
   );
 
   const loadJobs = useCallback(async () => {
@@ -90,8 +102,8 @@ export default function SwipeDeck({ profile, onJobAction }: SwipeDeckProps) {
   }, [jobs, isLoading]);
 
   useEffect(() => {
-    setCurrentIndex(enhancedJobs.length - 1);
-  }, [enhancedJobs]);
+    setCurrentIndex(filteredJobs.length - 1);
+  }, [filteredJobs]);
 
   const swiped = (direction: string, job: Job, index: number) => {
     setLastDirection(direction);
@@ -155,7 +167,7 @@ export default function SwipeDeck({ profile, onJobAction }: SwipeDeckProps) {
     );
   }
 
-  if (enhancedJobs.length === 0) {
+  if (filteredJobs.length === 0) {
     return (
       <div className="text-center py-12">
         <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -195,6 +207,36 @@ export default function SwipeDeck({ profile, onJobAction }: SwipeDeckProps) {
         </div>
       </div>
 
+      {/* Source Filter */}
+      {availableProviders.length > 0 && (
+        <div className="flex justify-end mb-4">
+          <label className="text-sm text-gray-600 mr-2" htmlFor="job-source-filter">
+            Source
+          </label>
+          <select
+            id="job-source-filter"
+            value={providerFilter}
+            onChange={(event: ChangeEvent<HTMLSelectElement>) =>
+              setProviderFilter(event.target.value as ProviderFilter)
+            }
+            className="text-sm border border-gray-200 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">All Sources</option>
+            {availableProviders.map(provider => (
+              <option key={provider} value={provider}>
+                {provider === 'ashby'
+                  ? 'Ashby'
+                  : provider === 'greenhouse'
+                  ? 'Greenhouse'
+                  : provider === 'lever'
+                  ? 'Lever'
+                  : provider}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
 
       {/* Instructions */}
       <div className="text-center mb-6">
@@ -205,7 +247,7 @@ export default function SwipeDeck({ profile, onJobAction }: SwipeDeckProps) {
 
       {/* Card Stack */}
       <div className="relative h-[600px]">
-        {enhancedJobs.map((job, index) => (
+        {filteredJobs.map((job, index) => (
           <TinderCard
             key={job.id}
             ref={cardRefs[index]}
