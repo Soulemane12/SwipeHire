@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback, createRef, type ChangeEvent } from 'react';
+import { useState, useEffect, useMemo, useCallback, createRef } from 'react';
 import TinderCard from 'react-tinder-card';
 import JobCard from './JobCard';
 import { Job } from '@/types/job';
@@ -10,16 +10,11 @@ import { fetchJobsFromATS } from '@/services/ats';
 import { enhanceJobsWithMatches, calculateJobMatch } from '@/services/matching';
 
 const MATCH_SCORE_THRESHOLD = 60;
+const FALLBACK_RESUME_PATH = process.env.NEXT_PUBLIC_RESUME_PATH ?? '';
 type SwipeDirection = 'left' | 'right' | 'up' | 'down';
 type TinderCardHandle = {
   swipe: (dir?: SwipeDirection) => Promise<void>;
   restoreCard: () => Promise<void>;
-};
-type ProviderFilter = 'all' | 'ashby' | 'greenhouse' | 'lever';
-const PROVIDER_LABELS: Record<Exclude<ProviderFilter, 'all'>, string> = {
-  ashby: 'Ashby',
-  greenhouse: 'Greenhouse',
-  lever: 'Lever'
 };
 
 interface SwipeDeckProps {
@@ -27,12 +22,31 @@ interface SwipeDeckProps {
   onJobAction?: (job: Job, action: 'applied' | 'skipped') => void;
 }
 
+function getNameParts(profile: Profile): { firstName: string; lastName: string } {
+  if (profile.firstName && profile.lastName) {
+    return { firstName: profile.firstName, lastName: profile.lastName };
+  }
+
+  if (profile.name) {
+    const segments = profile.name.trim().split(/\s+/).filter(Boolean);
+    if (segments.length === 1) {
+      return { firstName: segments[0], lastName: segments[0] };
+    }
+    const lastName = segments.pop() ?? '';
+    const firstName = segments.join(' ') || lastName;
+    return { firstName, lastName };
+  }
+
+  return { firstName: '', lastName: '' };
+}
+
 export default function SwipeDeck({ profile, onJobAction }: SwipeDeckProps) {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [currentIndex, setCurrentIndex] = useState(-1);
   const [lastDirection, setLastDirection] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
-  const [providerFilter, setProviderFilter] = useState<ProviderFilter>('all');
+  const [applyStatus, setApplyStatus] = useState<string | null>(null);
+  const [isAutoApplying, setIsAutoApplying] = useState(false);
 
   const hasProfileData = useMemo(() => {
     const skillCount = profile.skills?.length ?? 0;
@@ -52,52 +66,85 @@ export default function SwipeDeck({ profile, onJobAction }: SwipeDeckProps) {
     [scoredJobs]
   );
 
-  const providerCounts = useMemo(() => {
-    const counts: Record<Exclude<ProviderFilter, 'all'>, number> = {
-      ashby: 0,
-      greenhouse: 0,
-      lever: 0
-    };
-
-    scoredJobs.forEach(job => {
-      counts[job.atsProvider] = (counts[job.atsProvider] ?? 0) + 1;
-    });
-
-    return counts;
-  }, [scoredJobs]);
-
-  const recommendedCounts = useMemo(() => {
-    const counts: Record<Exclude<ProviderFilter, 'all'>, number> = {
-      ashby: 0,
-      greenhouse: 0,
-      lever: 0
-    };
-
-    recommendedJobs.forEach(job => {
-      counts[job.atsProvider] = (counts[job.atsProvider] ?? 0) + 1;
-    });
-
-    return counts;
-  }, [recommendedJobs]);
-
   const filteredJobs = useMemo(() => {
-    if (providerFilter === 'all') {
-      return recommendedJobs.length > 0 ? recommendedJobs : scoredJobs;
-    }
-
-    const recommendedForProvider = recommendedJobs.filter(job => job.atsProvider === providerFilter);
-    if (recommendedForProvider.length > 0) {
-      return recommendedForProvider;
-    }
-
-    // Fall back to all jobs for the provider if no recommended ones met the threshold
-    return scoredJobs.filter(job => job.atsProvider === providerFilter);
-  }, [recommendedJobs, scoredJobs, providerFilter]);
+    return recommendedJobs.length > 0 ? recommendedJobs : scoredJobs;
+  }, [recommendedJobs, scoredJobs]);
 
   const cardRefs = useMemo(
     () => filteredJobs.map(() => createRef<TinderCardHandle>()),
     [filteredJobs]
   );
+
+  const autoApply = useCallback(async (job: Job) => {
+    if (job.atsProvider !== 'ashby') {
+      saveJobSwipe(job.id, 'applied');
+      onJobAction?.(job, 'applied');
+      return;
+    }
+
+    const { firstName, lastName } = getNameParts(profile);
+    const email = profile.email;
+    const resumePath = profile.resumePath || FALLBACK_RESUME_PATH;
+
+    if (!firstName || !lastName || !email || !resumePath) {
+      setApplyStatus('Add your name, email, and resume path to auto-apply.');
+      return;
+    }
+
+    if (isAutoApplying) {
+      setApplyStatus('Finishing the previous application...');
+      return;
+    }
+
+    setIsAutoApplying(true);
+    setApplyStatus(`Applying to ${job.title} at ${job.company}...`);
+
+    try {
+      const payload = {
+        jobUrl: job.atsUrl,
+        profile: {
+          firstName,
+          lastName,
+          email,
+          phone: profile.phone,
+          location: profile.location,
+          linkedin: profile.linkedinUrl,
+          website: profile.portfolioUrl,
+          github: profile.githubUrl,
+          workAuth: profile.workAuth,
+          coverLetter: profile.coverLetter
+        },
+        resumePath,
+        mode: 'auto' as const
+      };
+
+      const response = await fetch('/api/apply-ashby', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (response.ok && data?.ok) {
+        saveJobSwipe(job.id, 'applied');
+        onJobAction?.(job, 'applied');
+        setApplyStatus(
+          data.successText
+            ? `Submitted: ${data.successText}`
+            : `Submitted application to ${job.company}.`
+        );
+      } else {
+        const message = data?.error || `HTTP ${response.status}`;
+        setApplyStatus(`Failed to apply: ${message}`);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setApplyStatus(`Failed to apply: ${message}`);
+    } finally {
+      setIsAutoApplying(false);
+    }
+  }, [profile, isAutoApplying, onJobAction]);
 
   const loadJobs = useCallback(async () => {
     if (!hasProfileData) {
@@ -156,16 +203,15 @@ export default function SwipeDeck({ profile, onJobAction }: SwipeDeckProps) {
 
   const swiped = (direction: string, job: Job, index: number) => {
     setLastDirection(direction);
-    const action = direction === 'right' ? 'applied' : 'skipped';
 
-    // Save to localStorage
-    saveJobSwipe(job.id, action);
-
-    // Callback to parent
-    onJobAction?.(job, action);
+    if (direction === 'right') {
+      void autoApply(job);
+    } else {
+      saveJobSwipe(job.id, 'skipped');
+      onJobAction?.(job, 'skipped');
+    }
 
     setCurrentIndex(Math.max(index - 1, -1));
-
     console.log(`Swiped ${direction} on ${job.title} at ${job.company}`);
   };
 
@@ -187,7 +233,7 @@ export default function SwipeDeck({ profile, onJobAction }: SwipeDeckProps) {
     [currentIndex, cardRefs]
   );
 
-  const actionsDisabled = currentIndex < 0;
+  const actionsDisabled = currentIndex < 0 || isAutoApplying;
 
   if (!hasProfileData) {
     return (
@@ -256,38 +302,6 @@ export default function SwipeDeck({ profile, onJobAction }: SwipeDeckProps) {
         </div>
       </div>
 
-      {/* Source Filter */}
-      <div className="flex justify-end items-center mb-4 space-x-2 text-sm">
-        <label className="text-gray-600" htmlFor="job-source-filter">
-          Source
-        </label>
-        <select
-          id="job-source-filter"
-          value={providerFilter}
-          onChange={(event: ChangeEvent<HTMLSelectElement>) =>
-            setProviderFilter(event.target.value as ProviderFilter)
-          }
-          className="border border-gray-200 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
-          <option value="all">
-            All Sources ({recommendedJobs.length > 0 ? recommendedJobs.length : scoredJobs.length})
-          </option>
-          {(Object.keys(PROVIDER_LABELS) as Array<Exclude<ProviderFilter, 'all'>>).map(provider => (
-            <option
-              key={provider}
-              value={provider}
-              disabled={providerCounts[provider] === 0}
-            >
-              {PROVIDER_LABELS[provider]}
-              {providerCounts[provider] > 0
-                ? ` (${recommendedCounts[provider] || 0}/${providerCounts[provider]})`
-                : ' (none)'}
-            </option>
-          ))}
-        </select>
-      </div>
-
-
       {/* Instructions */}
       <div className="text-center mb-6">
         <p className="text-sm text-gray-600">
@@ -340,6 +354,17 @@ export default function SwipeDeck({ profile, onJobAction }: SwipeDeckProps) {
               </>
             )}
           </div>
+        </div>
+      )}
+
+      {applyStatus && (
+        <div
+          className={`text-center mt-4 text-sm ${
+            applyStatus.toLowerCase().includes('failed') ? 'text-red-600' : 'text-blue-600'
+          }`}
+        >
+          {isAutoApplying && <span className="animate-pulse mr-1">•</span>}
+          {applyStatus}
         </div>
       )}
 

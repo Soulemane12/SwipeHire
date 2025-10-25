@@ -17,6 +17,8 @@ export interface EducationItem {
 }
 
 export interface Profile {
+  firstName?: string;
+  lastName?: string;
   name?: string;
   email?: string;
   phone?: string;
@@ -29,6 +31,10 @@ export interface Profile {
   certifications?: string[];
   linkedinUrl?: string;
   portfolioUrl?: string;
+  githubUrl?: string;
+  workAuth?: string;
+  coverLetter?: string;
+  resumePath?: string;
 }
 
 export interface ProfileCompletionStatus {

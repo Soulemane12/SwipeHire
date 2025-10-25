@@ -3,23 +3,13 @@ import { Job, JobSwipeData, ATSCompany } from '@/types/job';
 // Sample jobs removed - now using only real API data
 
 export const ATS_COMPANIES: ATSCompany[] = [
-  // Ashby companies (verified working APIs)
   { name: 'Notion', atsProvider: 'ashby', companyId: 'notion', baseUrl: 'https://jobs.ashbyhq.com/notion' },
   { name: 'Linear', atsProvider: 'ashby', companyId: 'linear', baseUrl: 'https://jobs.ashbyhq.com/linear' },
   { name: 'Vercel', atsProvider: 'ashby', companyId: 'vercel', baseUrl: 'https://jobs.ashbyhq.com/vercel' },
   { name: 'Supabase', atsProvider: 'ashby', companyId: 'supabase', baseUrl: 'https://jobs.ashbyhq.com/supabase' },
   { name: 'Retool', atsProvider: 'ashby', companyId: 'retool', baseUrl: 'https://jobs.ashbyhq.com/retool' },
   { name: 'Zapier', atsProvider: 'ashby', companyId: 'zapier', baseUrl: 'https://jobs.ashbyhq.com/zapier' },
-  { name: 'Loom', atsProvider: 'ashby', companyId: 'loom', baseUrl: 'https://jobs.ashbyhq.com/loom' },
-
-  // Greenhouse companies
-  { name: 'Figma', atsProvider: 'greenhouse', companyId: 'figma', baseUrl: 'https://boards.greenhouse.io/figma' },
-  { name: 'Stripe', atsProvider: 'greenhouse', companyId: 'stripe', baseUrl: 'https://boards.greenhouse.io/stripe' },
-  { name: 'GitHub', atsProvider: 'greenhouse', companyId: 'github', baseUrl: 'https://boards.greenhouse.io/github' },
-
-  // Lever companies
-  { name: 'Discord', atsProvider: 'lever', companyId: 'discord', baseUrl: 'https://jobs.lever.co/discord' },
-  { name: 'Netlify', atsProvider: 'lever', companyId: 'netlify', baseUrl: 'https://jobs.lever.co/netlify' }
+  { name: 'Loom', atsProvider: 'ashby', companyId: 'loom', baseUrl: 'https://jobs.ashbyhq.com/loom' }
 ];
 
 // Job swipe persistence
