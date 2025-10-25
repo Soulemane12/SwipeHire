@@ -7,7 +7,7 @@ import { Job } from '@/types/job';
 import { Profile } from '@/types/profile';
 import { ATS_COMPANIES, getJobSwipes, saveJobSwipe, getAppliedJobs, getSkippedJobs, deduplicateJobs } from '@/lib/jobs';
 import { fetchJobsFromATS } from '@/services/ats';
-import { enhanceJobsWithMatches } from '@/services/matching';
+import { enhanceJobsWithMatches, calculateJobMatch } from '@/services/matching';
 
 const MATCH_SCORE_THRESHOLD = 60;
 type SwipeDirection = 'left' | 'right' | 'up' | 'down';
@@ -117,11 +117,18 @@ export default function SwipeDeck({ profile, onJobAction }: SwipeDeckProps) {
         const companyJobs = await fetchJobsFromATS(company);
         if (!companyJobs || companyJobs.length === 0) return;
 
-        const filteredJobs = companyJobs.filter(job => !swipedJobIds.has(job.id));
-        if (filteredJobs.length === 0) return;
+        const scoredMatches = companyJobs
+          .filter(job => !swipedJobIds.has(job.id))
+          .map(job => {
+            const match = calculateJobMatch(job, profile);
+            return { ...job, matchScore: match.overall } as Job;
+          })
+          .filter(job => (job.matchScore ?? 0) >= MATCH_SCORE_THRESHOLD);
+
+        if (scoredMatches.length === 0) return;
 
         setJobs(prev => {
-          const combined = deduplicateJobs([...prev, ...filteredJobs]);
+          const combined = deduplicateJobs([...prev, ...scoredMatches]);
           return combined;
         });
       } catch (error) {
