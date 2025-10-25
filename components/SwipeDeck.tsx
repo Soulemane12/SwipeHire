@@ -42,11 +42,15 @@ export default function SwipeDeck({ profile, onJobAction }: SwipeDeckProps) {
   }, [profile]);
 
   // Enhanced jobs with match scores
-  const enhancedJobs = useMemo(() => {
+  const scoredJobs = useMemo(() => {
     if (!hasProfileData || jobs.length === 0) return [];
-    const scoredJobs = enhanceJobsWithMatches(jobs, profile);
-    return scoredJobs.filter(job => (job.matchScore ?? 0) >= MATCH_SCORE_THRESHOLD);
+    return enhanceJobsWithMatches(jobs, profile);
   }, [jobs, profile, hasProfileData]);
+
+  const recommendedJobs = useMemo(
+    () => scoredJobs.filter(job => (job.matchScore ?? 0) >= MATCH_SCORE_THRESHOLD),
+    [scoredJobs]
+  );
 
   const providerCounts = useMemo(() => {
     const counts: Record<Exclude<ProviderFilter, 'all'>, number> = {
@@ -55,17 +59,40 @@ export default function SwipeDeck({ profile, onJobAction }: SwipeDeckProps) {
       lever: 0
     };
 
-    enhancedJobs.forEach(job => {
+    scoredJobs.forEach(job => {
       counts[job.atsProvider] = (counts[job.atsProvider] ?? 0) + 1;
     });
 
     return counts;
-  }, [enhancedJobs]);
+  }, [scoredJobs]);
+
+  const recommendedCounts = useMemo(() => {
+    const counts: Record<Exclude<ProviderFilter, 'all'>, number> = {
+      ashby: 0,
+      greenhouse: 0,
+      lever: 0
+    };
+
+    recommendedJobs.forEach(job => {
+      counts[job.atsProvider] = (counts[job.atsProvider] ?? 0) + 1;
+    });
+
+    return counts;
+  }, [recommendedJobs]);
 
   const filteredJobs = useMemo(() => {
-    if (providerFilter === 'all') return enhancedJobs;
-    return enhancedJobs.filter(job => job.atsProvider === providerFilter);
-  }, [enhancedJobs, providerFilter]);
+    if (providerFilter === 'all') {
+      return recommendedJobs.length > 0 ? recommendedJobs : scoredJobs;
+    }
+
+    const recommendedForProvider = recommendedJobs.filter(job => job.atsProvider === providerFilter);
+    if (recommendedForProvider.length > 0) {
+      return recommendedForProvider;
+    }
+
+    // Fall back to all jobs for the provider if no recommended ones met the threshold
+    return scoredJobs.filter(job => job.atsProvider === providerFilter);
+  }, [recommendedJobs, scoredJobs, providerFilter]);
 
   const cardRefs = useMemo(
     () => filteredJobs.map(() => createRef<TinderCardHandle>()),
@@ -236,7 +263,7 @@ export default function SwipeDeck({ profile, onJobAction }: SwipeDeckProps) {
           className="border border-gray-200 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="all">
-            All Sources ({enhancedJobs.length})
+            All Sources ({recommendedJobs.length > 0 ? recommendedJobs.length : scoredJobs.length})
           </option>
           {(Object.keys(PROVIDER_LABELS) as Array<Exclude<ProviderFilter, 'all'>>).map(provider => (
             <option
@@ -245,7 +272,9 @@ export default function SwipeDeck({ profile, onJobAction }: SwipeDeckProps) {
               disabled={providerCounts[provider] === 0}
             >
               {PROVIDER_LABELS[provider]}
-              {providerCounts[provider] > 0 ? ` (${providerCounts[provider]})` : ' (none)'}
+              {providerCounts[provider] > 0
+                ? ` (${recommendedCounts[provider] || 0}/${providerCounts[provider]})`
+                : ' (none)'}
             </option>
           ))}
         </select>
