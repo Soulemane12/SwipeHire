@@ -171,6 +171,12 @@ export async function applyAshby(payload: ApplyPayload): Promise<ApplyResult> {
     console.log('🚀 Submitting application...');
     const initialSubmitClicked = await clickSubmitButton(page);
     if (!initialSubmitClicked) {
+      const successText = await findSuccessText(page);
+      if (successText) {
+        console.log('🎉 Submission appears successful even though submit button was absent.');
+        const screenshotPath = await captureScreenshot(page, `ashby-${Date.now()}.png`);
+        return { ok: true, successText, screenshotPath };
+      }
       throw new Error('Unable to locate an enabled submit button on the application form.');
     }
 
@@ -216,6 +222,12 @@ export async function applyAshby(payload: ApplyPayload): Promise<ApplyResult> {
       // Find and click submit button
       const retriedSubmitClicked = await clickSubmitButton(page);
       if (!retriedSubmitClicked) {
+        const successText = await findSuccessText(page);
+        if (successText) {
+          console.log('🎉 Submission appears successful even though submit button was absent on retry.');
+          const screenshotPath = await captureScreenshot(page, `ashby-${Date.now()}.png`);
+          return { ok: true, successText, screenshotPath };
+        }
         throw new Error('Unable to locate an enabled submit button during retry.');
       }
       await page.waitForTimeout(2000); // Increased wait time
