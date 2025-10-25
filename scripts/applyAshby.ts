@@ -18,6 +18,7 @@ export type ApplyPayload = {
     coverLetter?: string;
     willingToRelocate?: boolean;
     understandsAnchorDays?: boolean;
+    requiresSponsorship?: boolean;
   };
   resumePath: string;
   mode?: 'auto' | 'confirm';
@@ -29,6 +30,23 @@ type ApplyResult =
 
 export async function applyAshby(payload: ApplyPayload): Promise<ApplyResult> {
   const { jobUrl, profile, resumePath, mode = 'auto' } = payload;
+
+  const phone = profile.phone || '(646) 555-0199';
+  const workAuthAnswer = profile.workAuth || 'Yes, I am authorized to work in the United States';
+  const location = profile.location || 'New York, NY, USA';
+  const willingToRelocate = profile.willingToRelocate ?? true;
+  const understandsAnchorDays = profile.understandsAnchorDays ?? true;
+  const requiresSponsorship = profile.requiresSponsorship ?? false;
+
+  const enrichedProfile: ApplyPayload['profile'] = {
+    ...profile,
+    phone,
+    workAuth: workAuthAnswer,
+    location,
+    willingToRelocate,
+    understandsAnchorDays,
+    requiresSponsorship
+  };
 
   console.log('🤖 Starting Ashby auto-apply for:', jobUrl);
   console.log('📄 Resume path:', resumePath);
@@ -101,8 +119,8 @@ export async function applyAshby(payload: ApplyPayload): Promise<ApplyResult> {
     await fillIfVisible(page, 'First name', profile.firstName);
     await fillIfVisible(page, 'Last name', profile.lastName);
     await fillIfVisible(page, 'Email', profile.email);
-    await fillIfVisible(page, 'Phone', profile.phone);
-    await fillIfVisible(page, 'Location', profile.location);
+    await fillIfVisible(page, 'Phone', phone);
+    await fillIfVisible(page, 'Location', location);
 
     console.log('📎 Uploading resume...');
     await uploadByLikelyLabel(page, ['Resume', 'Résumé', 'CV'], resumePath);
@@ -116,14 +134,15 @@ export async function applyAshby(payload: ApplyPayload): Promise<ApplyResult> {
     await fillIfVisible(page, /Github.*website|GitHub/i, profile.github);
 
     if (profile.workAuth) {
-      console.log('🛂 Setting work authorization...');
-      await selectByLabelOrType(page, /Work Authorization|Work authorisation|Visa/i, profile.workAuth);
+      console.log('🛂 Setting work authorization choice...');
+      await selectByLabelOrType(page, /Work Authorization|Work authorisation|Visa/i, workAuthAnswer);
     }
 
     await ensureRequiredPolicyAnswers(page, {
-      workAuthAnswer: profile.workAuth ?? 'Yes, I am authorized to work in the United States',
-      inOfficePolicyConfirm: profile.understandsAnchorDays ?? true,
-      willingToRelocate: profile.willingToRelocate ?? true
+      workAuthYes: /yes|authorized/i.test(workAuthAnswer),
+      inOfficePolicyConfirm: understandsAnchorDays,
+      willingToRelocate,
+      requiresSponsorship
     });
 
     if (profile.coverLetter) {
@@ -135,7 +154,7 @@ export async function applyAshby(payload: ApplyPayload): Promise<ApplyResult> {
     }
 
     console.log('🤝 Auto-answering additional questions...');
-    await autoAnswerFollowUps(page, profile, mode, companyName, jobTitle);
+    await autoAnswerFollowUps(page, enrichedProfile, mode, companyName, jobTitle);
 
     console.log('✅ Checking terms and conditions...');
     await checkIfExists(page, /I agree|Terms|Privacy/i);
@@ -168,10 +187,19 @@ export async function applyAshby(payload: ApplyPayload): Promise<ApplyResult> {
       // FIRST: Try to fix missing fields BEFORE submitting
       console.log('🔄 Attempting to fix ALL missing fields aggressively...');
 
+      // Reapply critical fields before retries
+      await fillIfVisible(page, 'Phone', phone);
+      await ensureRequiredPolicyAnswers(page, {
+        workAuthYes: /yes|authorized/i.test(workAuthAnswer),
+        inOfficePolicyConfirm: understandsAnchorDays,
+        willingToRelocate,
+        requiresSponsorship
+      });
+
       // Run the JavaScript fix multiple times to ensure all elements are handled
       for (let fixAttempt = 1; fixAttempt <= 3; fixAttempt++) {
         console.log(`  🔧 Fix attempt ${fixAttempt}/3`);
-        const fixAttempted = await retryMissingFields(page, validationError, profile);
+        const fixAttempted = await retryMissingFields(page, validationError, enrichedProfile);
         console.log(`  📊 Fix attempt ${fixAttempt} result: ${fixAttempted ? 'SUCCESS' : 'NO CHANGES'}`);
 
         if (fixAttempted) {
@@ -352,18 +380,17 @@ async function selectByLabelOrType(page: Page, label: RegExp, value: string) {
 async function ensureRequiredPolicyAnswers(
   page: Page,
   opts: {
-    workAuthAnswer: string;
+    workAuthYes: boolean;
     inOfficePolicyConfirm: boolean;
     willingToRelocate: boolean;
+    requiresSponsorship: boolean;
   }
 ) {
-  const workAuthYes = /yes|authorized|eligible|citizen|lawfully/i.test(opts.workAuthAnswer);
-
   const tasks: Array<{ prompt: RegExp; kind: 'radio' | 'checkbox'; yes?: boolean } > = [
     {
       prompt: /authorized\s+to\s+work\s+lawfully.*united\s+states/i,
       kind: 'radio',
-      yes: workAuthYes
+      yes: opts.workAuthYes
     },
     {
       prompt: /(in[-\s]?office|anchor\s+days|in\s+person).*(confirm|understand|acknowledge)/i,
@@ -374,6 +401,11 @@ async function ensureRequiredPolicyAnswers(
       prompt: /(willing\s+to\s+relocate|relocate\s+to\s+(new\s+york|nyc|sf|san\s+francisco)|relocation.*required)/i,
       kind: 'radio',
       yes: opts.willingToRelocate
+    },
+    {
+      prompt: /(sponsor).*immigration.*(employ|future|now)/i,
+      kind: 'radio',
+      yes: !opts.requiresSponsorship
     }
   ];
 

@@ -86,10 +86,12 @@ export default function SwipeDeck({ profile, onJobAction }: SwipeDeckProps) {
     const { firstName, lastName } = getNameParts(profile);
     const email = profile.email;
     const resumePath = profile.resumePath || FALLBACK_RESUME_PATH;
+    const phone = profile.phone || '(646) 555-0199';
     const workAuth = profile.workAuth || 'Yes, I am authorized to work in the United States';
     const location = profile.location || 'New York, NY, USA';
     const willingToRelocate = profile.willingToRelocate ?? true;
     const understandsAnchorDays = profile.understandsAnchorDays ?? true;
+    const requiresSponsorship = profile.requiresSponsorship ?? false;
 
     if (!firstName || !lastName || !email || !resumePath) {
       setApplyStatus('Add your name, email, and resume path to auto-apply.');
@@ -111,7 +113,7 @@ export default function SwipeDeck({ profile, onJobAction }: SwipeDeckProps) {
           firstName,
           lastName,
           email,
-          phone: profile.phone,
+          phone,
           location,
           linkedin: profile.linkedinUrl,
           website: profile.portfolioUrl,
@@ -119,7 +121,8 @@ export default function SwipeDeck({ profile, onJobAction }: SwipeDeckProps) {
           workAuth,
           coverLetter: profile.coverLetter,
           willingToRelocate,
-          understandsAnchorDays
+          understandsAnchorDays,
+          requiresSponsorship
         },
         resumePath,
         mode: 'auto' as const

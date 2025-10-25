@@ -37,6 +37,7 @@ export interface Profile {
   resumePath?: string;
   willingToRelocate?: boolean;
   understandsAnchorDays?: boolean;
+  requiresSponsorship?: boolean;
 }
 
 export interface ProfileCompletionStatus {
