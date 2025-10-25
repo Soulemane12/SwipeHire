@@ -212,6 +212,9 @@ export default function SwipeDeck({ profile, onJobAction }: SwipeDeckProps) {
             onSwipe={(dir) => swiped(dir, job, index)}
             onCardLeftScreen={() => outOfFrame(job.id)}
             preventSwipe={['up', 'down']}
+            swipeRequirementType="position"
+            swipeThreshold={90}
+            flickOnSwipe={false}
             className="absolute inset-0"
           >
             <div className="h-full">
