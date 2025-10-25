@@ -66,7 +66,8 @@ export async function applyAshby(payload: ApplyPayload): Promise<ApplyResult> {
     }
 
     await page.waitForSelector('input[type="file"], button:has-text("Upload"), form', {
-      timeout: 20_000
+      timeout: 20_000,
+      state: 'attached'
     });
 
     await fillIfVisible(page, 'First name', profile.firstName);
@@ -127,31 +128,53 @@ async function uploadByLikelyLabel(page: Page, labels: Array<string | RegExp>, f
     throw new Error(`Resume file not found at ${absPath}`);
   }
 
-  const uploadButton = page.getByRole('button', { name: /upload file/i }).first();
-  if ((await uploadButton.count()) > 0) {
-    const fileChooser = await listenForFileChooser(page, uploadButton);
-    if (fileChooser) {
-      await fileChooser.setFiles(absPath);
-    } else {
-      await setFileOnFirstChooser(page, absPath);
+  const directInput = page.locator('input[type="file"]').first();
+  if ((await directInput.count()) > 0) {
+    try {
+      await directInput.setInputFiles(absPath);
+      await triggerAutofillFromResume(page);
+      return;
+    } catch {
+      // element might require user interaction, continue to other strategies
     }
-    await triggerAutofillFromResume(page);
-    return;
   }
 
   for (const label of labels) {
     const input = page.getByLabel(label, { exact: false });
     if ((await input.count()) > 0) {
-      await input.setInputFiles(absPath);
+      try {
+        await input.setInputFiles(absPath);
+        await triggerAutofillFromResume(page);
+        return;
+      } catch {
+        // continue
+      }
+    }
+  }
+
+  const uploadButton = page.getByRole('button', { name: /upload file|upload/i }).first();
+  if ((await uploadButton.count()) > 0) {
+    const fileChooser = await listenForFileChooser(page, uploadButton);
+    if (fileChooser) {
+      await fileChooser.setFiles(absPath);
+      await triggerAutofillFromResume(page);
+      return;
+    }
+
+    const success = await setFileOnFirstChooser(page, absPath);
+    if (success) {
       await triggerAutofillFromResume(page);
       return;
     }
   }
 
-  const firstFileInput = page.locator('input[type="file"]').first();
-  if ((await firstFileInput.count()) > 0) {
-    await firstFileInput.setInputFiles(absPath);
-    await triggerAutofillFromResume(page);
+  if ((await directInput.count()) > 0) {
+    try {
+      await directInput.setInputFiles(absPath);
+      await triggerAutofillFromResume(page);
+    } catch {
+      // give up silently; form may surface validation requiring manual input
+    }
   }
 }
 
@@ -317,13 +340,13 @@ async function listenForFileChooser(page: Page, button: Locator): Promise<FileCh
   }
 }
 
-async function setFileOnFirstChooser(page: Page, filePath: string) {
+async function setFileOnFirstChooser(page: Page, filePath: string): Promise<boolean> {
   try {
     const chooserPromise = page.waitForEvent('filechooser', { timeout: 3_000 }).catch(() => null);
     const fileChooser = await chooserPromise;
     if (fileChooser) {
       await fileChooser.setFiles(filePath);
-      return;
+      return true;
     }
   } catch {
     // ignore
@@ -332,7 +355,9 @@ async function setFileOnFirstChooser(page: Page, filePath: string) {
   const firstInput = page.locator('input[type="file"]').first();
   if ((await firstInput.count()) > 0) {
     await firstInput.setInputFiles(filePath);
+    return true;
   }
+  return false;
 }
 
 async function captureScreenshot(page: Page, filename: string): Promise<string> {
