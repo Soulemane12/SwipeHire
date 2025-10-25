@@ -604,8 +604,8 @@ async function ensureCheckboxByLabelPattern(page: Page, pattern: RegExp): Promis
 async function ensureRadioByGroupText(page: Page, question: RegExp, preferYes: boolean): Promise<boolean> {
   const handled = await page.evaluate(({ question, preferYes }) => {
     const qRe = new RegExp(question, 'i');
-    const yesRe = /(yes|i\s*(do|will|agree|confirm|understand)|no\s*sponsorship\s*needed|without\s*assistance)/i;
-    const noRe = /(no|not|i\s*will\s*require|yes\s*,?\s*i\s*will)/i;
+    const yesRe = /(yes|i\s*(do|will|agree|confirm|understand)|no\s*(sponsorship|immigration)\s*(needed|required)|without\s*assistance|does\s*not\s*require)/i;
+    const noRe = /(no|not|i\s*will\s*require|yes\s*,?\s*i\s*will|need\s*sponsorship|sponsorship\s*required)/i;
 
     const containers = Array.from(document.querySelectorAll('fieldset, section, div, article, form'))
       .filter(el => qRe.test(el.textContent || ''));
@@ -637,6 +637,20 @@ async function ensureRadioByGroupText(page: Page, question: RegExp, preferYes: b
           fallback.dispatchEvent(new Event('change', { bubbles: true }));
         }
         return true;
+      }
+    }
+
+    const roleRadios = Array.from(document.querySelectorAll('[role="radio"]')) as HTMLElement[];
+    if (roleRadios.length) {
+      for (const radio of roleRadios) {
+        const groupText = radio.closest('[role="radiogroup"], fieldset, section, div, article')?.textContent || '';
+        if (!qRe.test(groupText)) continue;
+        const text = radio.textContent || radio.getAttribute('aria-label') || '';
+        const target = preferYes ? yesRe : noRe;
+        if (target.test(text.toLowerCase())) {
+          radio.dispatchEvent(new Event('click', { bubbles: true }));
+          return true;
+        }
       }
     }
 
