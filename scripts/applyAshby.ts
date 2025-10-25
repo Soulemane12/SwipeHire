@@ -390,6 +390,17 @@ async function ensureRequiredPolicyAnswers(
     requiresSponsorship: boolean;
   }
 ) {
+  // Targeted toggle buttons first (Ashby segmented controls)
+  const anchorToggle = await selectToggleByQuestion(page, /Notion is an in person company/i, true);
+  if (anchorToggle) {
+    console.log('  ✅ Anchor days toggle button selected');
+  }
+
+  const sponsorshipToggle = await selectToggleByQuestion(page, /will you now or in the future require notion to sponsor/i, !opts.requiresSponsorship);
+  if (sponsorshipToggle) {
+    console.log('  ✅ Sponsorship toggle button selected');
+  }
+
   const tasks: Array<{ prompt: RegExp; kinds: ('radio' | 'checkbox')[]; preferYes: boolean }> = [
     {
       prompt: /authorized\s+to\s+work\s+lawfully.*united\s+states/i,
@@ -672,6 +683,52 @@ async function ensureRadioByGroupText(page: Page, question: RegExp, preferYes: b
   }, { question: question.source, preferYes });
 
   return handled;
+}
+
+async function selectToggleByQuestion(page: Page, question: RegExp, preferYes: boolean): Promise<boolean> {
+  const container = page.locator('fieldset, section, article, div, form').filter({ hasText: question }).first();
+  if ((await container.count()) === 0) {
+    return false;
+  }
+
+  const targetRegex = preferYes ? buildAffirmativeRegex(true) : buildNegativeRegex();
+
+  const buttons = container.locator('button, [role="button"], [role="radio"]');
+  const count = await buttons.count();
+  for (let i = 0; i < count; i++) {
+    const btn = buttons.nth(i);
+    const text = (await btn.innerText().catch(() => '')) || (await btn.getAttribute('aria-label')) || '';
+    if (targetRegex.test(text)) {
+      try {
+        await btn.click({ force: true });
+        return true;
+      } catch {
+        // continue
+      }
+    }
+  }
+
+  // Fallback: click via evaluate for segmented controls
+  const success = await container.evaluate((el, params) => {
+    const yesPattern = new RegExp(params.target, 'i');
+    const buttons = Array.from(el.querySelectorAll('button, [role="button"], [role="radio"]')) as HTMLElement[];
+    for (const btn of buttons) {
+      const text = btn.textContent || btn.getAttribute('aria-label') || '';
+      if (yesPattern.test(text)) {
+        btn.dispatchEvent(new Event('click', { bubbles: true }));
+        if (btn.getAttribute('aria-pressed') !== null) {
+          btn.setAttribute('aria-pressed', 'true');
+        }
+        if (btn.getAttribute('data-state') === 'unchecked') {
+          btn.setAttribute('data-state', params.preferYes ? 'checked' : 'unchecked');
+        }
+        return true;
+      }
+    }
+    return false;
+  }, { target: targetRegex.source, preferYes });
+
+  return success;
 }
 
 async function autoAnswerFollowUps(page: Page, profile: ApplyPayload['profile'], mode: 'auto' | 'confirm', companyName: string, jobTitle: string) {
