@@ -35,6 +35,8 @@ export interface Profile {
   workAuth?: string;
   coverLetter?: string;
   resumePath?: string;
+  willingToRelocate?: boolean;
+  understandsAnchorDays?: boolean;
 }
 
 export interface ProfileCompletionStatus {

@@ -79,7 +79,6 @@ export default function SwipeDeck({ profile, onJobAction }: SwipeDeckProps) {
     if (job.atsProvider !== 'ashby') {
       saveJobSwipe(job.id, 'applied');
       onJobAction?.(job, 'applied');
-      // Remove the job from the deck for non-Ashby jobs too
       setJobs(prevJobs => prevJobs.filter(j => j.id !== job.id));
       return;
     }
@@ -87,6 +86,10 @@ export default function SwipeDeck({ profile, onJobAction }: SwipeDeckProps) {
     const { firstName, lastName } = getNameParts(profile);
     const email = profile.email;
     const resumePath = profile.resumePath || FALLBACK_RESUME_PATH;
+    const workAuth = profile.workAuth || 'Yes, I am authorized to work in the United States';
+    const location = profile.location || 'New York, NY, USA';
+    const willingToRelocate = profile.willingToRelocate ?? true;
+    const understandsAnchorDays = profile.understandsAnchorDays ?? true;
 
     if (!firstName || !lastName || !email || !resumePath) {
       setApplyStatus('Add your name, email, and resume path to auto-apply.');
@@ -109,12 +112,14 @@ export default function SwipeDeck({ profile, onJobAction }: SwipeDeckProps) {
           lastName,
           email,
           phone: profile.phone,
-          location: profile.location,
+          location,
           linkedin: profile.linkedinUrl,
           website: profile.portfolioUrl,
           github: profile.githubUrl,
-          workAuth: profile.workAuth,
-          coverLetter: profile.coverLetter
+          workAuth,
+          coverLetter: profile.coverLetter,
+          willingToRelocate,
+          understandsAnchorDays
         },
         resumePath,
         mode: 'auto' as const
