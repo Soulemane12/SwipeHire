@@ -79,6 +79,8 @@ export default function SwipeDeck({ profile, onJobAction }: SwipeDeckProps) {
     if (job.atsProvider !== 'ashby') {
       saveJobSwipe(job.id, 'applied');
       onJobAction?.(job, 'applied');
+      // Remove the job from the deck for non-Ashby jobs too
+      setJobs(prevJobs => prevJobs.filter(j => j.id !== job.id));
       return;
     }
 
@@ -129,6 +131,8 @@ export default function SwipeDeck({ profile, onJobAction }: SwipeDeckProps) {
       if (response.ok && data?.ok) {
         saveJobSwipe(job.id, 'applied');
         onJobAction?.(job, 'applied');
+        // Remove the job from the deck after successful application
+        setJobs(prevJobs => prevJobs.filter(j => j.id !== job.id));
         setApplyStatus(
           data.successText
             ? `Submitted: ${data.successText}`
@@ -211,6 +215,9 @@ export default function SwipeDeck({ profile, onJobAction }: SwipeDeckProps) {
       saveJobSwipe(job.id, 'skipped');
       onJobAction?.(job, 'skipped');
     }
+
+    // Remove the swiped job from the current jobs array immediately
+    setJobs(prevJobs => prevJobs.filter(j => j.id !== job.id));
 
     setCurrentIndex(Math.max(index - 1, -1));
     console.log(`Swiped ${direction} on ${job.title} at ${job.company}`);
