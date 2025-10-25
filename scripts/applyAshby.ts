@@ -169,8 +169,10 @@ export async function applyAshby(payload: ApplyPayload): Promise<ApplyResult> {
     await page.waitForTimeout(2000);
 
     console.log('🚀 Submitting application...');
-    const submit = page.getByRole('button', { name: /submit|apply/i }).last();
-    await submit.click();
+    const initialSubmitClicked = await clickSubmitButton(page);
+    if (!initialSubmitClicked) {
+      throw new Error('Unable to locate an enabled submit button on the application form.');
+    }
 
     console.log('⏳ Waiting for submission confirmation...');
     await page.waitForTimeout(1_200);
@@ -212,8 +214,10 @@ export async function applyAshby(payload: ApplyPayload): Promise<ApplyResult> {
       await page.waitForTimeout(1000); // Wait a bit before resubmitting
 
       // Find and click submit button
-      const submit = page.getByRole('button', { name: /submit|apply/i }).last();
-      await submit.click();
+      const retriedSubmitClicked = await clickSubmitButton(page);
+      if (!retriedSubmitClicked) {
+        throw new Error('Unable to locate an enabled submit button during retry.');
+      }
       await page.waitForTimeout(2000); // Increased wait time
 
       // Check for errors again
@@ -986,6 +990,55 @@ async function labelTextFor(page: Page, locator: Locator): Promise<string> {
   }
 
   return '';
+}
+
+async function clickSubmitButton(page: Page): Promise<boolean> {
+  const roleButtons = page
+    .getByRole('button', { name: /submit|apply|send|finish|confirm/i, exact: false })
+    .filter({ hasNot: page.locator('[disabled], [aria-disabled="true"]') });
+
+  const candidates: Locator[] = [roleButtons.first()];
+
+  candidates.push(page.locator('form button[type="submit"]:not([disabled])').first());
+  candidates.push(page.locator('button[type="submit"]:not([disabled])').first());
+  candidates.push(page.locator('input[type="submit"]:not([disabled])').first());
+
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    try {
+      if ((await candidate.count()) === 0) continue;
+      await candidate.waitFor({ state: 'visible', timeout: 5_000 }).catch(() => {});
+      const enabled = await candidate.isEnabled().catch(() => false);
+      if (!enabled) continue;
+      await candidate.click({ timeout: 5_000 });
+      return true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.log(`  ⚠️ Submit candidate failed: ${message}`);
+    }
+  }
+
+  // Final fallback: submit the first form via JS
+  const formHandle = page.locator('form').first();
+  if ((await formHandle.count()) > 0) {
+    try {
+      const formElement = await formHandle.elementHandle();
+      if (formElement) {
+        await page.evaluate((form) => {
+          form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+          if (form instanceof HTMLFormElement) {
+            form.submit();
+          }
+        }, formElement);
+        return true;
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.log(`  ⚠️ Form.submit fallback failed: ${message}`);
+    }
+  }
+
+  return false;
 }
 
 async function smartSelectOption(locator: Locator, label: string | null, jobTitle: string) {
