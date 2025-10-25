@@ -712,8 +712,9 @@ async function selectSegmentedToggle(page: Page, question: RegExp, preferYes: bo
     for (const candidate of buttonCandidates) {
       if ((await candidate.count()) > 0) {
         try {
+          if (await isLocatorActive(candidate)) return true;
           await candidate.click({ force: true });
-          return true;
+          if (await isLocatorActive(candidate)) return true;
         } catch {
           // try next candidate
         }
@@ -721,13 +722,19 @@ async function selectSegmentedToggle(page: Page, question: RegExp, preferYes: bo
     }
 
     const success = await container.evaluate((el, params) => {
-      const yesPattern = new RegExp(params.pattern, 'i');
+      const targetPattern = new RegExp(params.pattern, 'i');
+      const isActive = (btn: HTMLElement) =>
+        btn.getAttribute('aria-pressed') === 'true' ||
+        btn.getAttribute('data-state') === 'checked' ||
+        /selected|active|checked|pressed/i.test(btn.className);
+
       const buttons = Array.from(el.querySelectorAll('button, [role="button"], [role="radio"]')) as HTMLElement[];
       for (const btn of buttons) {
         const text = btn.textContent || btn.getAttribute('aria-label') || '';
-        if (yesPattern.test(text)) {
+        if (targetPattern.test(text)) {
+          if (isActive(btn)) return true;
           btn.dispatchEvent(new Event('click', { bubbles: true }));
-          return true;
+          return isActive(btn);
         }
       }
       return false;
@@ -736,6 +743,16 @@ async function selectSegmentedToggle(page: Page, question: RegExp, preferYes: bo
     if (success) return true;
   }
 
+  return false;
+}
+
+async function isLocatorActive(locator: Locator): Promise<boolean> {
+  const ariaPressed = await locator.getAttribute('aria-pressed');
+  if (ariaPressed === 'true') return true;
+  const dataState = await locator.getAttribute('data-state');
+  if (dataState === 'checked' || dataState === 'true') return true;
+  const className = (await locator.getAttribute('class')) || '';
+  if (/selected|active|checked|pressed/i.test(className)) return true;
   return false;
 }
 
